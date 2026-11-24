@@ -1,0 +1,4 @@
+# Windows 批处理(.bat)必须用 CRLF 换行——LF 会让 cmd.exe 误解析（字符被吃掉、注释被当命令执行）
+*.bat text eol=crlf
+# HTA 同样用 CRLF，保证 Windows 记事本/mshta 一致
+*.hta text eol=crlf

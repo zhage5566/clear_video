@@ -1,0 +1,201 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<title>视频清晰化工具</title>
+<hta:application id="app"
+  applicationname="视频清晰化工具"
+  border="dialog"
+  borderstyle="normal"
+  caption="yes"
+  contextmenu="no"
+  innerborder="no"
+  maximizebutton="no"
+  minimizebutton="yes"
+  scroll="no"
+  singleinstance="yes"
+  showintaskbar="yes"
+  windowstate="normal">
+<style>
+  body { font-family: "Microsoft YaHei", "微软雅黑", sans-serif; font-size: 13px;
+         margin: 18px; background: #f5f6f8; color: #222; }
+  h3 { margin: 0 0 14px; font-size: 16px; }
+  .row { margin-bottom: 11px; }
+  .row label { display: inline-block; min-width: 66px; }
+  input[type=text], select { padding: 4px; border: 1px solid #ccc; border-radius: 2px; }
+  #video { width: 330px; }
+  #img { width: 330px; }
+  .btn { padding: 4px 14px; cursor: pointer; }
+  .sep { border-top: 1px solid #ddd; margin: 8px 0; padding-top: 10px; }
+  #status { color: #888; min-height: 18px; margin: 10px 0; }
+  #start { width: 100%; padding: 11px; font-size: 15px; font-weight: bold;
+           background: #2f6fed; color: #fff; border: none; border-radius: 3px; cursor: pointer; }
+  #start:hover { background: #1f5fd0; }
+</style>
+</head>
+<body>
+  <h3>视频清晰化工具</h3>
+
+  <div class="row">
+    <label>视频文件</label>
+    <input type="text" id="video" placeholder="选择或粘贴视频完整路径">
+    <button class="btn" id="browse">浏览...</button>
+  </div>
+
+  <div class="row">
+    <label>目标帧率</label>
+    <select id="fps">
+      <option>60</option><option>120</option><option>90</option><option>48</option><option>24</option>
+    </select>
+    <span style="margin-left:16px">补帧模型</span>
+    <select id="rife">
+      <option>rife-v4.6</option><option>rife-v4</option><option>rife-v2.3</option><option>rife-anime</option>
+    </select>
+  </div>
+
+  <div class="sep">
+    <div class="row">
+      <label><input type="checkbox" id="up" checked> 超分</label>
+      <span>倍数</span>
+      <select id="scale"><option>2</option><option>3</option><option>4</option></select>
+      <span style="margin-left:16px">模型</span>
+      <select id="esr">
+        <option>realesr-animevideov3</option>
+        <option>realesrgan-x4plus</option>
+        <option>realesrgan-x4plus-anime</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <label>编码器</label>
+    <select id="enc">
+      <option value="0">H.264（通用）</option>
+      <option value="1">HEVC（NVIDIA 硬解，防 8K 掉帧）</option>
+    </select>
+  </div>
+
+  <div class="sep">
+    <div class="row">
+      <label>图片文件</label>
+      <input type="text" id="img" placeholder="选择或粘贴图片完整路径">
+      <button class="btn" id="ibrowse">浏览...</button>
+    </div>
+    <div class="row">
+      <label>超分倍数</label>
+      <select id="iscale"><option>2</option><option>3</option><option>4</option></select>
+      <span style="margin-left:16px">模型</span>
+      <select id="iesr">
+        <option>realesr-animevideov3</option>
+        <option>realesrgan-x4plus</option>
+        <option>realesrgan-x4plus-anime</option>
+      </select>
+    </div>
+    <div class="row">
+      <label></label>
+      <button class="btn" id="iup">图片超分（提高清晰度）</button>
+    </div>
+  </div>
+
+  <div id="status">选择视频后点击「开始处理」，或选择图片后点击「图片超分」。</div>
+  <button id="start">开始处理</button>
+
+  <input type="file" id="picker" style="position:absolute; left:-9999px; top:0">
+  <input type="file" id="ipicker" accept="image/*" style="position:absolute; left:-9999px; top:0">
+
+<script>
+  window.resizeTo(520, 540);
+  window.moveTo((screen.availWidth - 520) / 2, (screen.availHeight - 540) / 2);
+
+  function setStatus(msg, isErr) {
+    var el = document.getElementById('status');
+    el.innerHTML = msg;
+    el.style.color = isErr ? '#c0392b' : '#888';
+  }
+
+  function getScriptDir() {
+    try {
+      var path = unescape(window.location.pathname);   // /E:/clear_video/xxx.hta
+      path = path.replace(/^\//, '');                  // E:/clear_video/xxx.hta
+      path = path.replace(/\//g, '\\');                // E:\clear_video\xxx.hta
+      var i = path.lastIndexOf('\\');
+      return i > 0 ? path.substring(0, i) : '.';
+    } catch (e) {
+      return '.';
+    }
+  }
+
+  document.getElementById('browse').onclick = function () {
+    document.getElementById('picker').click();
+  };
+  document.getElementById('picker').onchange = function () {
+    if (this.value) document.getElementById('video').value = this.value;
+  };
+
+  document.getElementById('ibrowse').onclick = function () {
+    document.getElementById('ipicker').click();
+  };
+  document.getElementById('ipicker').onchange = function () {
+    if (this.value) document.getElementById('img').value = this.value;
+  };
+
+  document.getElementById('iup').onclick = function () {
+    var img = document.getElementById('img').value.replace(/^\s+|\s+$/g, '');
+    if (!img) { setStatus('请先选择图片文件。', true); return; }
+
+    var scale = document.getElementById('iscale').value;
+    var model = document.getElementById('iesr').value;
+
+    var dir = getScriptDir();
+    var bat = dir + '\\图片超分.bat';
+
+    var fso = new ActiveXObject('Scripting.FileSystemObject');
+    if (!fso.FileExists(bat)) { setStatus('找不到脚本：' + bat, true); return; }
+    if (!fso.FileExists(img)) { setStatus('文件不存在：' + img, true); return; }
+
+    setStatus('已启动，进度见弹出的命令行窗口；完成后输出在原图旁。', false);
+
+    var q = function (s) { return '"' + s + '"'; };
+    var cmdLine = 'cmd.exe /k call ' + q(bat) + ' ' + q(img) + ' ' + scale + ' ' + q(model);
+    try {
+      var shell = new ActiveXObject('WScript.Shell');
+      shell.Run(cmdLine, 1, false);
+    } catch (e) {
+      setStatus('启动失败：' + e.message, true);
+    }
+  };
+
+  document.getElementById('start').onclick = function () {
+    var video = document.getElementById('video').value.replace(/^\s+|\s+$/g, '');
+    if (!video) { setStatus('请先选择视频文件。', true); return; }
+
+    var fps = document.getElementById('fps').value;
+    var rife = document.getElementById('rife').value;
+    var doUp = document.getElementById('up').checked ? '1' : '0';
+    var scale = document.getElementById('scale').value;
+    var esr = document.getElementById('esr').value;
+    var hevc = document.getElementById('enc').value;
+
+    var dir = getScriptDir();
+    var bat = dir + '\\视频清晰化.bat';
+
+    var fso = new ActiveXObject('Scripting.FileSystemObject');
+    if (!fso.FileExists(bat)) { setStatus('找不到脚本：' + bat, true); return; }
+    if (!fso.FileExists(video)) { setStatus('文件不存在：' + video, true); return; }
+
+    setStatus('已启动，进度见弹出的命令行窗口；完成后输出在原视频旁。', false);
+
+    var q = function (s) { return '"' + s + '"'; };
+    var cmdLine = 'cmd.exe /k call ' + q(bat) + ' ' + q(video) + ' ' +
+                  fps + ' ' + scale + ' ' + doUp + ' ' + q(rife) + ' ' + q(esr) + ' ' + hevc;
+    try {
+      var shell = new ActiveXObject('WScript.Shell');
+      shell.Run(cmdLine, 1, false);
+    } catch (e) {
+      setStatus('启动失败：' + e.message, true);
+    }
+  };
+</script>
+</body>
+</html>
